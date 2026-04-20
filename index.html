@@ -12,17 +12,19 @@
         color:#e2e8f0;
         padding:20px;
     }
-    h1 { text-align:center; }
-    .container { max-width:900px; margin:auto; }
 
-    .add-box, .filter-box {
+    h1 { text-align:center; }
+
+    .topbar {
         display:flex;
-        gap:10px;
-        margin-bottom:15px;
-        flex-wrap:wrap;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:10px;
     }
 
-    input, select {
+    .container { max-width:900px; margin:auto; }
+
+    input {
         padding:10px;
         border-radius:8px;
         border:none;
@@ -60,12 +62,31 @@
     }
 
     .btn {
-        margin-left:5px;
         padding:5px 8px;
         font-size:12px;
     }
 
-    /* modal */
+    .history-date {
+        background:#0ea5e9;
+        color:black;
+        padding:4px 10px;
+        border-radius:6px;
+        font-weight:bold;
+        display:inline-block;
+    }
+
+    .entry-box {
+        margin-top:10px;
+        padding:10px;
+        border-left:3px solid #38bdf8;
+    }
+
+    .entry-qty,
+    .entry-amount {
+        font-weight:bold;
+        font-size:16px;
+    }
+
     .modal {
         position:fixed;
         top:0; left:0;
@@ -86,47 +107,32 @@
         min-width:250px;
     }
 </style>
-
 </head>
+
 <body>
+
 <div class="container">
 
-<h1>Water Bottle Logger</h1>
-
-<div class="add-box">
-    <input id="itemName" placeholder="Enter company / item name" />
-    <button onclick="addItem()">Initiate</button>
+<div class="topbar">
+    <h1>Water Bottle Logger</h1>
+    <button onclick="toggleView()">History</button>
 </div>
 
-<div class="filter-box">
-    <input id="search" placeholder="Search company..." oninput="render()" />
+<!-- ACTIVE VIEW -->
+<div id="appView">
 
-    <select id="monthFilter" onchange="render()">
-        <option value="">All Months</option>
-        <option value="0">Jan</option>
-        <option value="1">Feb</option>
-        <option value="2">Mar</option>
-        <option value="3">Apr</option>
-        <option value="4">May</option>
-        <option value="5">Jun</option>
-        <option value="6">Jul</option>
-        <option value="7">Aug</option>
-        <option value="8">Sep</option>
-        <option value="9">Oct</option>
-        <option value="10">Nov</option>
-        <option value="11">Dec</option>
-    </select>
+    <div class="row">
+        <input id="itemName" placeholder="Enter company name" />
+        <button onclick="addItem()">Initiate</button>
+    </div>
 
-    <select id="yearFilter" onchange="render()">
-        <option value="">All Years</option>
-        <option value="2024">2024</option>
-        <option value="2025">2025</option>
-        <option value="2026">2026</option>
-        <option value="2027">2027</option>
-    </select>
+    <input id="search" placeholder="Search..." oninput="render()" style="width:100%;margin-top:10px"/>
+
+    <div id="list"></div>
 </div>
 
-<div id="list"></div>
+<!-- HISTORY VIEW -->
+<div id="historyView" style="display:none"></div>
 
 </div>
 
@@ -134,10 +140,8 @@
 <div class="modal" id="dateModal" onclick="closeModalOutside(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
         <input type="date" id="dateInput" />
-        <div class="row">
-            <button onclick="saveDate()">Save</button>
-            <button onclick="closeModal()" style="background:#ef4444">Cancel</button>
-        </div>
+        <button onclick="saveDate()">Save</button>
+        <button onclick="closeModal()" style="background:red">Cancel</button>
     </div>
 </div>
 
@@ -151,7 +155,9 @@ import {
     onSnapshot,
     updateDoc,
     deleteDoc,
-    doc
+    doc,
+    getDoc,
+    setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -166,32 +172,36 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let items=[];
-let editIndex=null;
-let editLogIndex=null;
+let items = [];
+let history = {};
+let view = "active";
+let editIndex = null;
+let editLogIndex = null;
 
-onSnapshot(collection(db,"items"),(snapshot)=>{
-    items=snapshot.docs.map(d=>({id:d.id,...d.data()}));
+/* 🔥 FIX: HISTORY STATE */
+let selectedCompany = "all";
+
+/* LOAD ITEMS */
+onSnapshot(collection(db,"items"), snap=>{
+    items = snap.docs.map(d=>({id:d.id,...d.data()}));
     render();
 });
 
-function formatDate(dateObj){
-    const d=dateObj||new Date();
+/* LOAD HISTORY */
+onSnapshot(doc(db,"history","main"), snap=>{
+    history = snap.exists() ? snap.data() : {};
+    if(view==="history") renderHistory();
+});
+
+/* DATE FORMAT */
+function formatDate(d=new Date()){
     const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return `${d.getDate()}-${m[d.getMonth()]}-${d.getFullYear()}`;
 }
 
-function parseMonth(dateStr){
-    const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return m.indexOf(dateStr.split('-')[1]);
-}
-
-function parseYear(dateStr){
-    return dateStr.split('-')[2];
-}
-
+/* ADD COMPANY */
 window.addItem = async function(){
-    const name=document.getElementById('itemName').value.trim();
+    const name = document.getElementById("itemName").value.trim();
     if(!name) return;
 
     await addDoc(collection(db,"items"),{
@@ -200,14 +210,15 @@ window.addItem = async function(){
         logs:[]
     });
 
-    document.getElementById('itemName').value='';
+    document.getElementById("itemName").value="";
 };
 
+/* ADD ENTRY */
 window.logEntry = async function(i){
-    const qty=prompt("Enter quantity:");
+    const qty = prompt("Enter quantity:");
     if(!qty) return;
 
-    let item=items[i];
+    let item = items[i];
     item.logs.push({qty:Number(qty),date:formatDate()});
 
     await updateDoc(doc(db,"items",item.id),{
@@ -215,44 +226,87 @@ window.logEntry = async function(i){
     });
 };
 
+/* EDIT PRICE */
 window.editPrice = async function(i){
-    let item=items[i];
-    const p=prompt("Enter price:",item.price);
-    if(!p) return;
+    let item = items[i];
+
+    const newPrice = prompt("Enter price:", item.price);
+    if(newPrice === null) return;
+
+    if(isNaN(newPrice)) return alert("Invalid price");
 
     await updateDoc(doc(db,"items",item.id),{
-        price:Number(p)
+        price:Number(newPrice)
     });
 };
 
-// OPEN MODAL
-window.editDate = function(i,j){
-    editIndex=i;
-    editLogIndex=j;
-    document.getElementById('dateModal').style.display='flex';
+/* PAID → HISTORY */
+window.payCompany = async function(i){
+    let item = items[i];
+
+    let totalQty = item.logs.reduce((a,b)=>a+b.qty,0);
+    let totalAmount = totalQty*(item.price||0);
+
+    const ref = doc(db,"history","main");
+    let snap = await getDoc(ref);
+
+    let data = snap.exists() ? snap.data() : {};
+
+    if(!data[item.name]) data[item.name] = [];
+
+    data[item.name].push({
+        totalQty,
+        totalAmount,
+        paidDate:formatDate()
+    });
+
+    await setDoc(ref,data);
+
+    await updateDoc(doc(db,"items",item.id),{
+        logs:[]
+    });
+
+    alert("Moved to History");
 };
 
+/* DELETE COMPANY */
+window.deleteCompany = async function(i){
+    if(!confirm("Delete Company?")) return;
+    await deleteDoc(doc(db,"items",items[i].id));
+};
+
+/* EDIT DATE */
+window.editDate = function(i,j){
+    editIndex = i;
+    editLogIndex = j;
+    document.getElementById("dateModal").style.display="flex";
+};
+
+/* SAVE DATE (FIXED SAFE) */
 window.saveDate = async function(){
-    const val=document.getElementById('dateInput').value;
+    const val = document.getElementById("dateInput").value;
     if(!val) return;
 
-    let item=items[editIndex];
-    const d=new Date(val);
-    const formatted=formatDate(d);
+    closeModal(); // FIX: close instantly
 
-    item.logs[editLogIndex].date=formatted;
+    try {
+        let item = items[editIndex];
+        item.logs[editLogIndex].date = formatDate(new Date(val));
 
-    await updateDoc(doc(db,"items",item.id),{
-        logs:item.logs
-    });
+        await updateDoc(doc(db,"items",item.id),{
+            logs:item.logs
+        });
 
-    closeModal();
+    } catch(err){
+        console.error(err);
+    }
 };
 
+/* DELETE ENTRY (ACTIVE) */
 window.deleteEntry = async function(i,j){
-    if(!confirm("Delete this entry?")) return;
+    if(!confirm("Delete entry?")) return;
 
-    let item=items[i];
+    let item = items[i];
     item.logs.splice(j,1);
 
     await updateDoc(doc(db,"items",item.id),{
@@ -260,49 +314,169 @@ window.deleteEntry = async function(i,j){
     });
 };
 
-window.deleteCompany = async function(i){
-    if(!confirm("Delete entire company?")) return;
-    await deleteDoc(doc(db,"items",items[i].id));
-};
-
-// MODAL CONTROLS
+/* MODAL */
 window.closeModal = function(){
-    document.getElementById('dateModal').style.display='none';
+    document.getElementById("dateModal").style.display="none";
 };
 
 window.closeModalOutside = function(e){
-    if(e.target.id==='dateModal') closeModal();
+    if(e.target.id==="dateModal") closeModal();
 };
 
+/* TOGGLE VIEW */
+window.toggleView = function(){
+    view = view==="active"?"history":"active";
+
+    document.getElementById("appView").style.display =
+        view==="active"?"block":"none";
+
+    document.getElementById("historyView").style.display =
+        view==="history"?"block":"none";
+
+    if(view==="history") renderHistory();
+};
+
+/* FILTER CHANGE */
+window.changeFilter = function(){
+    selectedCompany = document.getElementById("historyFilter").value;
+    renderHistory();
+};
+
+/* UPDATE FILTER OPTIONS */
+window.updateHistoryFilterOptions = function(){
+    const filter = document.getElementById("historyFilter");
+    if(!filter) return;
+
+    filter.innerHTML = `<option value="all">All Companies</option>`;
+
+    Object.keys(history || {}).forEach(c=>{
+        filter.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+
+    filter.value = selectedCompany;
+};
+
+/* DELETE HISTORY ENTRY */
+window.deleteHistoryEntry = async function(company,index){
+    if(!confirm("Delete entry?")) return;
+
+    history[company].splice(index,1);
+
+    if(history[company].length === 0){
+        delete history[company];
+    }
+
+    await setDoc(doc(db,"history","main"), history);
+    renderHistory();
+};
+
+/* DELETE FULL COMPANY HISTORY */
+window.deleteHistoryCompany = async function(company){
+    if(!confirm("Delete full history?")) return;
+
+    delete history[company];
+
+    await setDoc(doc(db,"history","main"), history);
+    renderHistory();
+};
+
+/* HISTORY RENDER (FIXED + SAFE) */
+window.renderHistory = function(){
+    const div = document.getElementById("historyView");
+
+    const data = history || {};
+
+    div.innerHTML = `
+        <h2>History</h2>
+
+        <div style="margin-bottom:10px;">
+            <select id="historyFilter" onchange="changeFilter()"
+                style="padding:10px;border-radius:8px;width:100%;">
+                <option value="all">All Companies</option>
+            </select>
+        </div>
+    `;
+
+    updateHistoryFilterOptions();
+
+    let hasData = false;
+
+    Object.keys(data).forEach(company=>{
+
+        if(selectedCompany !== "all" && selectedCompany !== company) return;
+
+        hasData = true;
+
+        div.innerHTML += `
+        <div class="card">
+
+            <div class="row">
+                <h3>${company}</h3>
+
+                <button style="background:red"
+                    onclick="deleteHistoryCompany('${company}')">
+                    Delete Company
+                </button>
+            </div>
+        `;
+
+        data[company].forEach((entry,i)=>{
+
+            div.innerHTML += `
+            <div class="entry-box">
+
+                <div class="row">
+                    <div class="history-date">${entry.paidDate}</div>
+
+                    <button style="background:#ef4444"
+                        onclick="deleteHistoryEntry('${company}',${i})">
+                        Delete
+                    </button>
+                </div>
+
+                <div class="entry-qty">Qty: ${entry.totalQty}</div>
+                <div class="entry-amount">Amount: ${entry.totalAmount}</div>
+            </div>`;
+        });
+
+        div.innerHTML += `</div>`;
+    });
+
+    if(!hasData){
+        div.innerHTML += `
+            <div style="text-align:center;color:#94a3b8;margin-top:20px;">
+                No history found
+            </div>
+        `;
+    }
+};
+
+/* ACTIVE RENDER */
 window.render = function(){
-    const list=document.getElementById('list');
-    const search=document.getElementById('search').value.toLowerCase();
-    const month=document.getElementById('monthFilter').value;
-    const year=document.getElementById('yearFilter').value;
+    const list = document.getElementById("list");
+    const search = document.getElementById("search").value.toLowerCase();
 
-    list.innerHTML='';
+    list.innerHTML="";
 
-    items.filter(i=>i.name.toLowerCase().includes(search))
+    items
+    .filter(i=>i.name.toLowerCase().includes(search))
     .forEach((item,i)=>{
 
-        let logs=item.logs||[];
-
-        if(month!="") logs=logs.filter(l=>parseMonth(l.date)==month);
-        if(year!="") logs=logs.filter(l=>parseYear(l.date)==year);
-
-        let totalQty=logs.reduce((a,b)=>a+b.qty,0);
-        let totalAmount=totalQty*(item.price||0);
+        let logs = item.logs||[];
+        let totalQty = logs.reduce((a,b)=>a+b.qty,0);
+        let totalAmount = totalQty*(item.price||0);
 
         let html=`
         <div class="card">
             <h2>${item.name}</h2>
-            <div class="small">Price: ${item.price}</div>
+
             <div class="small">Qty: ${totalQty} | Amount: ${totalAmount}</div>
 
             <div class="row">
-                <button onclick="logEntry(${i})">Add Entry</button>
+                <button onclick="logEntry(${i})">Add</button>
                 <button onclick="editPrice(${i})">Edit Price</button>
-                <button onclick="deleteCompany(${i})">Delete Company</button>
+                <button onclick="payCompany(${i})">Paid</button>
+                <button onclick="deleteCompany(${i})">Delete</button>
             </div>
         `;
 
@@ -312,13 +486,12 @@ window.render = function(){
                 <div>${log.qty} - ${log.date}</div>
                 <div>
                     <button class="btn" onclick="editDate(${i},${j})">Edit</button>
-                    <button class="btn" onclick="deleteEntry(${i},${j})">Delete</button>
+                    <button class="btn" onclick="deleteEntry(${i},${j})">X</button>
                 </div>
-            </div>
-            `;
+            </div>`;
         });
 
-        html+=`</div>`;
+        html+="</div>";
         list.innerHTML+=html;
     });
 };
