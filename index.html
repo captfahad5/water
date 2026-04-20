@@ -243,6 +243,24 @@ function formatDate(d = new Date()) {
     return `${d.getDate()}-${m[d.getMonth()]}-${d.getFullYear()}`;
 }
 
+function parseAppDate(str) {
+    if (!str) return new Date(0);
+
+    const monthMap = {
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+    };
+
+    const parts = str.split("-");
+    if (parts.length !== 3) return new Date(0);
+
+    const day = Number(parts[0]);
+    const month = monthMap[parts[1]];
+    const year = Number(parts[2]);
+
+    return new Date(year, month, day);
+}
+
 function escapeHtml(str = "") {
     return String(str)
         .replaceAll("&", "&amp;")
@@ -495,36 +513,38 @@ window.renderHistory = function () {
                 </div>
         `;
 
-        data[company].forEach((entry, i) => {
-            const safeLogs = Array.isArray(entry.logs) ? entry.logs : [];
+        [...data[company]]
+            .sort((a, b) => parseAppDate(b.paidDate) - parseAppDate(a.paidDate))
+            .forEach((entry, i) => {
+                const safeLogs = Array.isArray(entry.logs) ? entry.logs : [];
 
-            div.innerHTML += `
-                <div class="entry-box">
-                    <div class="row">
-                        <div class="history-date">${escapeHtml(entry.paidDate || "")}</div>
-                        <button style="background:#ef4444" onclick='deleteHistoryEntry(${safeCompany}, ${i})'>
-                            Delete
-                        </button>
+                div.innerHTML += `
+                    <div class="entry-box">
+                        <div class="row">
+                            <div class="history-date">${escapeHtml(entry.paidDate || "")}</div>
+                            <button style="background:#ef4444" onclick='deleteHistoryEntry(${safeCompany}, ${i})'>
+                                Delete
+                            </button>
+                        </div>
+
+                        <div class="entry-qty">Qty: ${Number(entry.totalQty || 0)}</div>
+                        <div class="entry-amount">Amount: ${Number(entry.totalAmount || 0)}</div>
+
+                        <details>
+                            <summary>View Dates (${safeLogs.length})</summary>
+                            ${
+                                safeLogs.length
+                                    ? safeLogs.map(log => `
+                                        <div class="history-log">
+                                            ${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}
+                                        </div>
+                                    `).join("")
+                                    : `<div style="margin-top:8px;color:#94a3b8;">No saved dates</div>`
+                            }
+                        </details>
                     </div>
-
-                    <div class="entry-qty">Qty: ${Number(entry.totalQty || 0)}</div>
-                    <div class="entry-amount">Amount: ${Number(entry.totalAmount || 0)}</div>
-
-                    <details>
-                        <summary>View Dates (${safeLogs.length})</summary>
-                        ${
-                            safeLogs.length
-                                ? safeLogs.map(log => `
-                                    <div class="history-log">
-                                        ${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}
-                                    </div>
-                                `).join("")
-                                : `<div style="margin-top:8px;color:#94a3b8;">No saved dates</div>`
-                        }
-                    </details>
-                </div>
-            `;
-        });
+                `;
+            });
 
         div.innerHTML += `</div>`;
     });
