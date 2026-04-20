@@ -106,6 +106,16 @@
         gap:10px;
         min-width:250px;
     }
+
+    details {
+        margin-top:10px;
+    }
+
+    summary {
+        cursor:pointer;
+        color:#38bdf8;
+        font-weight:bold;
+    }
 </style>
 </head>
 
@@ -118,9 +128,7 @@
     <button onclick="toggleView()">History</button>
 </div>
 
-<!-- ACTIVE VIEW -->
 <div id="appView">
-
     <div class="row">
         <input id="itemName" placeholder="Enter company name" />
         <button onclick="addItem()">Initiate</button>
@@ -131,12 +139,10 @@
     <div id="list"></div>
 </div>
 
-<!-- HISTORY VIEW -->
 <div id="historyView" style="display:none"></div>
 
 </div>
 
-<!-- DATE MODAL -->
 <div class="modal" id="dateModal" onclick="closeModalOutside(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
         <input type="date" id="dateInput" />
@@ -177,29 +183,23 @@ let history = {};
 let view = "active";
 let editIndex = null;
 let editLogIndex = null;
-
-/* 🔥 FIX: HISTORY STATE */
 let selectedCompany = "all";
 
-/* LOAD ITEMS */
 onSnapshot(collection(db,"items"), snap=>{
     items = snap.docs.map(d=>({id:d.id,...d.data()}));
     render();
 });
 
-/* LOAD HISTORY */
 onSnapshot(doc(db,"history","main"), snap=>{
     history = snap.exists() ? snap.data() : {};
     if(view==="history") renderHistory();
 });
 
-/* DATE FORMAT */
 function formatDate(d=new Date()){
     const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return `${d.getDate()}-${m[d.getMonth()]}-${d.getFullYear()}`;
 }
 
-/* ADD COMPANY */
 window.addItem = async function(){
     const name = document.getElementById("itemName").value.trim();
     if(!name) return;
@@ -213,7 +213,6 @@ window.addItem = async function(){
     document.getElementById("itemName").value="";
 };
 
-/* ADD ENTRY */
 window.logEntry = async function(i){
     const qty = prompt("Enter quantity:");
     if(!qty) return;
@@ -226,7 +225,6 @@ window.logEntry = async function(i){
     });
 };
 
-/* EDIT PRICE */
 window.editPrice = async function(i){
     let item = items[i];
 
@@ -240,7 +238,6 @@ window.editPrice = async function(i){
     });
 };
 
-/* PAID → HISTORY */
 window.payCompany = async function(i){
     let item = items[i];
 
@@ -257,7 +254,8 @@ window.payCompany = async function(i){
     data[item.name].push({
         totalQty,
         totalAmount,
-        paidDate:formatDate()
+        paidDate:formatDate(),
+        logs:[...item.logs]
     });
 
     await setDoc(ref,data);
@@ -269,25 +267,22 @@ window.payCompany = async function(i){
     alert("Moved to History");
 };
 
-/* DELETE COMPANY */
 window.deleteCompany = async function(i){
     if(!confirm("Delete Company?")) return;
     await deleteDoc(doc(db,"items",items[i].id));
 };
 
-/* EDIT DATE */
 window.editDate = function(i,j){
     editIndex = i;
     editLogIndex = j;
     document.getElementById("dateModal").style.display="flex";
 };
 
-/* SAVE DATE (FIXED SAFE) */
 window.saveDate = async function(){
     const val = document.getElementById("dateInput").value;
     if(!val) return;
 
-    closeModal(); // FIX: close instantly
+    closeModal();
 
     try {
         let item = items[editIndex];
@@ -302,7 +297,6 @@ window.saveDate = async function(){
     }
 };
 
-/* DELETE ENTRY (ACTIVE) */
 window.deleteEntry = async function(i,j){
     if(!confirm("Delete entry?")) return;
 
@@ -314,7 +308,6 @@ window.deleteEntry = async function(i,j){
     });
 };
 
-/* MODAL */
 window.closeModal = function(){
     document.getElementById("dateModal").style.display="none";
 };
@@ -323,7 +316,6 @@ window.closeModalOutside = function(e){
     if(e.target.id==="dateModal") closeModal();
 };
 
-/* TOGGLE VIEW */
 window.toggleView = function(){
     view = view==="active"?"history":"active";
 
@@ -336,13 +328,11 @@ window.toggleView = function(){
     if(view==="history") renderHistory();
 };
 
-/* FILTER CHANGE */
 window.changeFilter = function(){
     selectedCompany = document.getElementById("historyFilter").value;
     renderHistory();
 };
 
-/* UPDATE FILTER OPTIONS */
 window.updateHistoryFilterOptions = function(){
     const filter = document.getElementById("historyFilter");
     if(!filter) return;
@@ -356,7 +346,6 @@ window.updateHistoryFilterOptions = function(){
     filter.value = selectedCompany;
 };
 
-/* DELETE HISTORY ENTRY */
 window.deleteHistoryEntry = async function(company,index){
     if(!confirm("Delete entry?")) return;
 
@@ -370,7 +359,6 @@ window.deleteHistoryEntry = async function(company,index){
     renderHistory();
 };
 
-/* DELETE FULL COMPANY HISTORY */
 window.deleteHistoryCompany = async function(company){
     if(!confirm("Delete full history?")) return;
 
@@ -380,10 +368,8 @@ window.deleteHistoryCompany = async function(company){
     renderHistory();
 };
 
-/* HISTORY RENDER (FIXED + SAFE) */
 window.renderHistory = function(){
     const div = document.getElementById("historyView");
-
     const data = history || {};
 
     div.innerHTML = `
@@ -409,10 +395,8 @@ window.renderHistory = function(){
 
         div.innerHTML += `
         <div class="card">
-
             <div class="row">
                 <h3>${company}</h3>
-
                 <button style="background:red"
                     onclick="deleteHistoryCompany('${company}')">
                     Delete Company
@@ -421,10 +405,8 @@ window.renderHistory = function(){
         `;
 
         data[company].forEach((entry,i)=>{
-
             div.innerHTML += `
             <div class="entry-box">
-
                 <div class="row">
                     <div class="history-date">${entry.paidDate}</div>
 
@@ -436,6 +418,19 @@ window.renderHistory = function(){
 
                 <div class="entry-qty">Qty: ${entry.totalQty}</div>
                 <div class="entry-amount">Amount: ${entry.totalAmount}</div>
+
+                <details>
+                    <summary>View Dates</summary>
+                    ${
+                        entry.logs && entry.logs.length
+                        ? entry.logs.map(log => `
+                            <div class="row" style="margin-top:8px;padding:8px 0;border-bottom:1px solid #334155;">
+                                <div>${log.qty} - ${log.date}</div>
+                            </div>
+                        `).join("")
+                        : `<div style="margin-top:8px;color:#94a3b8;">No saved dates</div>`
+                    }
+                </details>
             </div>`;
         });
 
@@ -451,7 +446,6 @@ window.renderHistory = function(){
     }
 };
 
-/* ACTIVE RENDER */
 window.render = function(){
     const list = document.getElementById("list");
     const search = document.getElementById("search").value.toLowerCase();
