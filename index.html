@@ -20,11 +20,12 @@
         justify-content:space-between;
         align-items:center;
         margin-bottom:10px;
+        gap:10px;
     }
 
     .container { max-width:900px; margin:auto; }
 
-    input {
+    input, select {
         padding:10px;
         border-radius:8px;
         border:none;
@@ -54,6 +55,7 @@
         align-items:center;
         margin-top:10px;
         gap:10px;
+        flex-wrap:wrap;
     }
 
     .small {
@@ -79,12 +81,15 @@
         margin-top:10px;
         padding:10px;
         border-left:3px solid #38bdf8;
+        background:#162033;
+        border-radius:8px;
     }
 
     .entry-qty,
     .entry-amount {
         font-weight:bold;
         font-size:16px;
+        margin-top:6px;
     }
 
     .modal {
@@ -108,13 +113,52 @@
     }
 
     details {
-        margin-top:10px;
+        margin-top:12px;
+        background:#0f172a;
+        border-radius:8px;
+        padding:10px;
     }
 
     summary {
         cursor:pointer;
         color:#38bdf8;
         font-weight:bold;
+        outline:none;
+    }
+
+    .history-log {
+        margin-top:8px;
+        padding:8px 0;
+        border-bottom:1px solid #334155;
+    }
+
+    .history-log:last-child {
+        border-bottom:none;
+    }
+
+    .reset-btn {
+        background:#22c55e;
+        color:#06220f;
+    }
+
+    @media (max-width: 700px) {
+        .topbar {
+            flex-direction:column;
+            align-items:stretch;
+        }
+
+        .topbar h1 {
+            margin:0;
+        }
+
+        .row {
+            flex-direction:column;
+            align-items:stretch;
+        }
+
+        button {
+            width:100%;
+        }
     }
 </style>
 </head>
@@ -123,23 +167,23 @@
 
 <div class="container">
 
-<div class="topbar">
-    <h1>Water Bottle Logger</h1>
-    <button onclick="toggleView()">History</button>
-</div>
-
-<div id="appView">
-    <div class="row">
-        <input id="itemName" placeholder="Enter company name" />
-        <button onclick="addItem()">Initiate</button>
+    <div class="topbar">
+        <h1>Water Bottle Logger</h1>
+        <button onclick="toggleView()">History</button>
     </div>
 
-    <input id="search" placeholder="Search..." oninput="render()" style="width:100%;margin-top:10px"/>
+    <div id="appView">
+        <div class="row">
+            <input id="itemName" placeholder="Enter company name" />
+            <button onclick="addItem()">Initiate</button>
+        </div>
 
-    <div id="list"></div>
-</div>
+        <input id="search" placeholder="Search..." oninput="render()" style="width:100%;margin-top:10px" />
 
-<div id="historyView" style="display:none"></div>
+        <div id="list"></div>
+    </div>
+
+    <div id="historyView" style="display:none"></div>
 
 </div>
 
@@ -152,7 +196,6 @@
 </div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
     getFirestore,
@@ -167,12 +210,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAA8Z5zVivaW69yAK6bPO6tBpfWtzh1LEg",
-  authDomain: "water-bottle-logger.firebaseapp.com",
-  projectId: "water-bottle-logger",
-  storageBucket: "water-bottle-logger.firebasestorage.app",
-  messagingSenderId: "454383387158",
-  appId: "1:454383387158:web:e48fb9876f00bef862ab37"
+    apiKey: "AIzaSyAA8Z5zVivaW69yAK6bPO6tBpfWtzh1LEg",
+    authDomain: "water-bottle-logger.firebaseapp.com",
+    projectId: "water-bottle-logger",
+    storageBucket: "water-bottle-logger.firebasestorage.app",
+    messagingSenderId: "454383387158",
+    appId: "1:454383387158:web:e48fb9876f00bef862ab37"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -185,199 +228,239 @@ let editIndex = null;
 let editLogIndex = null;
 let selectedCompany = "all";
 
-onSnapshot(collection(db,"items"), snap=>{
-    items = snap.docs.map(d=>({id:d.id,...d.data()}));
+onSnapshot(collection(db, "items"), (snap) => {
+    items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
 });
 
-onSnapshot(doc(db,"history","main"), snap=>{
+onSnapshot(doc(db, "history", "main"), (snap) => {
     history = snap.exists() ? snap.data() : {};
-    if(view==="history") renderHistory();
+    if (view === "history") renderHistory();
 });
 
-function formatDate(d=new Date()){
-    const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatDate(d = new Date()) {
+    const m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return `${d.getDate()}-${m[d.getMonth()]}-${d.getFullYear()}`;
 }
 
-window.addItem = async function(){
+function escapeHtml(str = "") {
+    return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+}
+
+window.addItem = async function () {
     const name = document.getElementById("itemName").value.trim();
-    if(!name) return;
+    if (!name) return;
 
-    await addDoc(collection(db,"items"),{
+    await addDoc(collection(db, "items"), {
         name,
-        price:150,
-        logs:[]
+        price: 150,
+        logs: []
     });
 
-    document.getElementById("itemName").value="";
+    document.getElementById("itemName").value = "";
 };
 
-window.logEntry = async function(i){
+window.logEntry = async function (i) {
     const qty = prompt("Enter quantity:");
-    if(!qty) return;
+    if (!qty) return;
+    if (isNaN(qty)) return alert("Invalid quantity");
 
-    let item = items[i];
-    item.logs.push({qty:Number(qty),date:formatDate()});
+    const item = items[i];
+    item.logs.push({
+        qty: Number(qty),
+        date: formatDate()
+    });
 
-    await updateDoc(doc(db,"items",item.id),{
-        logs:item.logs
+    await updateDoc(doc(db, "items", item.id), {
+        logs: item.logs
     });
 };
 
-window.editPrice = async function(i){
-    let item = items[i];
-
+window.editPrice = async function (i) {
+    const item = items[i];
     const newPrice = prompt("Enter price:", item.price);
-    if(newPrice === null) return;
 
-    if(isNaN(newPrice)) return alert("Invalid price");
+    if (newPrice === null) return;
+    if (isNaN(newPrice)) return alert("Invalid price");
 
-    await updateDoc(doc(db,"items",item.id),{
-        price:Number(newPrice)
+    await updateDoc(doc(db, "items", item.id), {
+        price: Number(newPrice)
     });
 };
 
-window.payCompany = async function(i){
-    let item = items[i];
+window.payCompany = async function (i) {
+    const item = items[i];
+    const logs = item.logs || [];
 
-    let totalQty = item.logs.reduce((a,b)=>a+b.qty,0);
-    let totalAmount = totalQty*(item.price||0);
+    if (!logs.length) {
+        alert("No entries to move to history");
+        return;
+    }
 
-    const ref = doc(db,"history","main");
-    let snap = await getDoc(ref);
+    const totalQty = logs.reduce((a, b) => a + Number(b.qty || 0), 0);
+    const totalAmount = totalQty * (item.price || 0);
 
-    let data = snap.exists() ? snap.data() : {};
+    const ref = doc(db, "history", "main");
+    const snap = await getDoc(ref);
+    const data = snap.exists() ? snap.data() : {};
 
-    if(!data[item.name]) data[item.name] = [];
+    if (!data[item.name]) data[item.name] = [];
 
     data[item.name].push({
         totalQty,
         totalAmount,
-        paidDate:formatDate(),
-        logs:[...item.logs]
+        paidDate: formatDate(),
+        logs: logs.map(log => ({
+            qty: Number(log.qty || 0),
+            date: log.date || ""
+        }))
     });
 
-    await setDoc(ref,data);
+    await setDoc(ref, data);
 
-    await updateDoc(doc(db,"items",item.id),{
-        logs:[]
+    await updateDoc(doc(db, "items", item.id), {
+        logs: []
     });
 
     alert("Moved to History");
 };
 
-window.deleteCompany = async function(i){
-    if(!confirm("Delete Company?")) return;
-    await deleteDoc(doc(db,"items",items[i].id));
+window.deleteCompany = async function (i) {
+    if (!confirm("Delete Company?")) return;
+    await deleteDoc(doc(db, "items", items[i].id));
 };
 
-window.editDate = function(i,j){
+window.editDate = function (i, j) {
     editIndex = i;
     editLogIndex = j;
-    document.getElementById("dateModal").style.display="flex";
+    document.getElementById("dateModal").style.display = "flex";
 };
 
-window.saveDate = async function(){
+window.saveDate = async function () {
     const val = document.getElementById("dateInput").value;
-    if(!val) return;
+    if (!val) return;
 
     closeModal();
 
     try {
-        let item = items[editIndex];
+        const item = items[editIndex];
         item.logs[editLogIndex].date = formatDate(new Date(val));
 
-        await updateDoc(doc(db,"items",item.id),{
-            logs:item.logs
+        await updateDoc(doc(db, "items", item.id), {
+            logs: item.logs
         });
-
-    } catch(err){
+    } catch (err) {
         console.error(err);
     }
 };
 
-window.deleteEntry = async function(i,j){
-    if(!confirm("Delete entry?")) return;
+window.deleteEntry = async function (i, j) {
+    if (!confirm("Delete entry?")) return;
 
-    let item = items[i];
-    item.logs.splice(j,1);
+    const item = items[i];
+    item.logs.splice(j, 1);
 
-    await updateDoc(doc(db,"items",item.id),{
-        logs:item.logs
+    await updateDoc(doc(db, "items", item.id), {
+        logs: item.logs
     });
 };
 
-window.closeModal = function(){
-    document.getElementById("dateModal").style.display="none";
+window.closeModal = function () {
+    document.getElementById("dateModal").style.display = "none";
 };
 
-window.closeModalOutside = function(e){
-    if(e.target.id==="dateModal") closeModal();
+window.closeModalOutside = function (e) {
+    if (e.target.id === "dateModal") closeModal();
 };
 
-window.toggleView = function(){
-    view = view==="active"?"history":"active";
+window.toggleView = function () {
+    view = view === "active" ? "history" : "active";
 
     document.getElementById("appView").style.display =
-        view==="active"?"block":"none";
+        view === "active" ? "block" : "none";
 
     document.getElementById("historyView").style.display =
-        view==="history"?"block":"none";
+        view === "history" ? "block" : "none";
 
-    if(view==="history") renderHistory();
+    if (view === "history") renderHistory();
 };
 
-window.changeFilter = function(){
-    selectedCompany = document.getElementById("historyFilter").value;
+window.changeFilter = function () {
+    const filter = document.getElementById("historyFilter");
+    selectedCompany = filter ? filter.value.trim() : "all";
     renderHistory();
 };
 
-window.updateHistoryFilterOptions = function(){
-    const filter = document.getElementById("historyFilter");
-    if(!filter) return;
+window.resetHistoryFilter = function () {
+    selectedCompany = "all";
+    renderHistory();
+};
 
+window.updateHistoryFilterOptions = function () {
+    const filter = document.getElementById("historyFilter");
+    if (!filter) return;
+
+    const companies = Object.keys(history || {});
     filter.innerHTML = `<option value="all">All Companies</option>`;
 
-    Object.keys(history || {}).forEach(c=>{
-        filter.innerHTML += `<option value="${c}">${c}</option>`;
+    companies.forEach((company) => {
+        filter.innerHTML += `<option value="${escapeHtml(company)}">${escapeHtml(company)}</option>`;
     });
+
+    if (selectedCompany !== "all" && !companies.includes(selectedCompany)) {
+        selectedCompany = "all";
+    }
 
     filter.value = selectedCompany;
 };
 
-window.deleteHistoryEntry = async function(company,index){
-    if(!confirm("Delete entry?")) return;
+window.deleteHistoryEntry = async function (company, index) {
+    if (!confirm("Delete entry?")) return;
 
-    history[company].splice(index,1);
+    history[company].splice(index, 1);
 
-    if(history[company].length === 0){
+    if (history[company].length === 0) {
         delete history[company];
+        if (selectedCompany === company) {
+            selectedCompany = "all";
+        }
     }
 
-    await setDoc(doc(db,"history","main"), history);
+    await setDoc(doc(db, "history", "main"), history);
     renderHistory();
 };
 
-window.deleteHistoryCompany = async function(company){
-    if(!confirm("Delete full history?")) return;
+window.deleteHistoryCompany = async function (company) {
+    if (!confirm("Delete full history?")) return;
 
     delete history[company];
 
-    await setDoc(doc(db,"history","main"), history);
+    if (selectedCompany === company) {
+        selectedCompany = "all";
+    }
+
+    await setDoc(doc(db, "history", "main"), history);
     renderHistory();
 };
 
-window.renderHistory = function(){
+window.renderHistory = function () {
     const div = document.getElementById("historyView");
     const data = history || {};
+    const companies = Object.keys(data);
 
     div.innerHTML = `
-        <h2>History</h2>
+        <div class="row" style="margin-bottom:10px;">
+            <h2 style="margin:0;">History</h2>
+            <button class="reset-btn" onclick="resetHistoryFilter()">Reset</button>
+        </div>
 
         <div style="margin-bottom:10px;">
-            <select id="historyFilter" onchange="changeFilter()"
-                style="padding:10px;border-radius:8px;width:100%;">
+            <select id="historyFilter" onchange="changeFilter()" style="width:100%;">
                 <option value="all">All Companies</option>
             </select>
         </div>
@@ -385,109 +468,109 @@ window.renderHistory = function(){
 
     updateHistoryFilterOptions();
 
-    let hasData = false;
+    const filterValue = (selectedCompany || "all").trim();
+    const visibleCompanies = filterValue === "all"
+        ? companies
+        : companies.filter(company => company === filterValue);
 
-    Object.keys(data).forEach(company=>{
-
-        if(selectedCompany !== "all" && selectedCompany !== company) return;
-
-        hasData = true;
-
-        div.innerHTML += `
-        <div class="card">
-            <div class="row">
-                <h3>${company}</h3>
-                <button style="background:red"
-                    onclick="deleteHistoryCompany('${company}')">
-                    Delete Company
-                </button>
-            </div>
-        `;
-
-        data[company].forEach((entry,i)=>{
-            div.innerHTML += `
-            <div class="entry-box">
-                <div class="row">
-                    <div class="history-date">${entry.paidDate}</div>
-
-                    <button style="background:#ef4444"
-                        onclick="deleteHistoryEntry('${company}',${i})">
-                        Delete
-                    </button>
-                </div>
-
-                <div class="entry-qty">Qty: ${entry.totalQty}</div>
-                <div class="entry-amount">Amount: ${entry.totalAmount}</div>
-
-                <details>
-                    <summary>View Dates</summary>
-                    ${
-                        entry.logs && entry.logs.length
-                        ? entry.logs.map(log => `
-                            <div class="row" style="margin-top:8px;padding:8px 0;border-bottom:1px solid #334155;">
-                                <div>${log.qty} - ${log.date}</div>
-                            </div>
-                        `).join("")
-                        : `<div style="margin-top:8px;color:#94a3b8;">No saved dates</div>`
-                    }
-                </details>
-            </div>`;
-        });
-
-        div.innerHTML += `</div>`;
-    });
-
-    if(!hasData){
+    if (visibleCompanies.length === 0) {
         div.innerHTML += `
             <div style="text-align:center;color:#94a3b8;margin-top:20px;">
                 No history found
             </div>
         `;
+        return;
     }
+
+    visibleCompanies.forEach((company) => {
+        const safeCompany = JSON.stringify(company);
+
+        div.innerHTML += `
+            <div class="card">
+                <div class="row">
+                    <h3>${escapeHtml(company)}</h3>
+                    <button style="background:red" onclick='deleteHistoryCompany(${safeCompany})'>
+                        Delete Company
+                    </button>
+                </div>
+        `;
+
+        data[company].forEach((entry, i) => {
+            const safeLogs = Array.isArray(entry.logs) ? entry.logs : [];
+
+            div.innerHTML += `
+                <div class="entry-box">
+                    <div class="row">
+                        <div class="history-date">${escapeHtml(entry.paidDate || "")}</div>
+                        <button style="background:#ef4444" onclick='deleteHistoryEntry(${safeCompany}, ${i})'>
+                            Delete
+                        </button>
+                    </div>
+
+                    <div class="entry-qty">Qty: ${Number(entry.totalQty || 0)}</div>
+                    <div class="entry-amount">Amount: ${Number(entry.totalAmount || 0)}</div>
+
+                    <details>
+                        <summary>View Dates (${safeLogs.length})</summary>
+                        ${
+                            safeLogs.length
+                                ? safeLogs.map(log => `
+                                    <div class="history-log">
+                                        ${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}
+                                    </div>
+                                `).join("")
+                                : `<div style="margin-top:8px;color:#94a3b8;">No saved dates</div>`
+                        }
+                    </details>
+                </div>
+            `;
+        });
+
+        div.innerHTML += `</div>`;
+    });
 };
 
-window.render = function(){
+window.render = function () {
     const list = document.getElementById("list");
     const search = document.getElementById("search").value.toLowerCase();
 
-    list.innerHTML="";
+    list.innerHTML = "";
 
     items
-    .filter(i=>i.name.toLowerCase().includes(search))
-    .forEach((item,i)=>{
+        .filter(item => (item.name || "").toLowerCase().includes(search))
+        .forEach((item, i) => {
+            const logs = item.logs || [];
+            const totalQty = logs.reduce((a, b) => a + Number(b.qty || 0), 0);
+            const totalAmount = totalQty * (item.price || 0);
 
-        let logs = item.logs||[];
-        let totalQty = logs.reduce((a,b)=>a+b.qty,0);
-        let totalAmount = totalQty*(item.price||0);
+            let html = `
+                <div class="card">
+                    <h2>${escapeHtml(item.name || "")}</h2>
+                    <div class="small">Qty: ${totalQty} | Amount: ${totalAmount}</div>
 
-        let html=`
-        <div class="card">
-            <h2>${item.name}</h2>
+                    <div class="row">
+                        <button onclick="logEntry(${i})">Add</button>
+                        <button onclick="editPrice(${i})">Edit Price</button>
+                        <button onclick="payCompany(${i})">Paid</button>
+                        <button onclick="deleteCompany(${i})">Delete</button>
+                    </div>
+            `;
 
-            <div class="small">Qty: ${totalQty} | Amount: ${totalAmount}</div>
+            logs.forEach((log, j) => {
+                html += `
+                    <div class="row">
+                        <div>${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}</div>
+                        <div>
+                            <button class="btn" onclick="editDate(${i},${j})">Edit</button>
+                            <button class="btn" onclick="deleteEntry(${i},${j})">X</button>
+                        </div>
+                    </div>
+                `;
+            });
 
-            <div class="row">
-                <button onclick="logEntry(${i})">Add</button>
-                <button onclick="editPrice(${i})">Edit Price</button>
-                <button onclick="payCompany(${i})">Paid</button>
-                <button onclick="deleteCompany(${i})">Delete</button>
-            </div>
-        `;
-
-        logs.forEach((log,j)=>{
-            html+=`
-            <div class="row">
-                <div>${log.qty} - ${log.date}</div>
-                <div>
-                    <button class="btn" onclick="editDate(${i},${j})">Edit</button>
-                    <button class="btn" onclick="deleteEntry(${i},${j})">X</button>
-                </div>
-            </div>`;
+            html += `</div>`;
+            list.innerHTML += html;
         });
-
-        html+="</div>";
-        list.innerHTML+=html;
-    });
 };
 
 </script>
