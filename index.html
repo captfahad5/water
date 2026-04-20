@@ -250,6 +250,8 @@ window.saveDate = async function(){
 };
 
 window.deleteEntry = async function(i,j){
+    if(!confirm("Delete this entry?")) return;
+
     let item=items[i];
     item.logs.splice(j,1);
 
