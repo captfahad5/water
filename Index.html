@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Water Bottle Logger</title>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background:#0f172a;
+        color:#e2e8f0;
+        padding:20px;
+    }
+    h1 { text-align:center; }
+    .container { max-width:900px; margin:auto; }
+
+    .add-box, .filter-box {
+        display:flex;
+        gap:10px;
+        margin-bottom:15px;
+        flex-wrap:wrap;
+    }
+
+    input, select {
+        padding:10px;
+        border-radius:8px;
+        border:none;
+        flex:1;
+        min-width:120px;
+    }
+
+    button {
+        padding:10px 15px;
+        border:none;
+        border-radius:8px;
+        background:#38bdf8;
+        cursor:pointer;
+        font-weight:bold;
+    }
+
+    .card {
+        background:#1e293b;
+        padding:15px;
+        border-radius:12px;
+        margin-bottom:15px;
+    }
+
+    .row {
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-top:10px;
+        gap:10px;
+    }
+
+    .small {
+        font-size:12px;
+        color:#94a3b8;
+    }
+
+    .btn {
+        margin-left:5px;
+        padding:5px 8px;
+        font-size:12px;
+    }
+
+    /* modal */
+    .modal {
+        position:fixed;
+        top:0; left:0;
+        width:100%; height:100%;
+        background:rgba(0,0,0,0.6);
+        display:none;
+        align-items:center;
+        justify-content:center;
+    }
+
+    .modal-box {
+        background:#1e293b;
+        padding:20px;
+        border-radius:12px;
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+        min-width:250px;
+    }
+</style>
+
+</head>
+<body>
+<div class="container">
+
+<h1>Water Bottle Logger</h1>
+
+<div class="add-box">
+    <input id="itemName" placeholder="Enter company / item name" />
+    <button onclick="addItem()">Initiate</button>
+</div>
+
+<div class="filter-box">
+    <input id="search" placeholder="Search company..." oninput="render()" />
+
+    <select id="monthFilter" onchange="render()">
+        <option value="">All Months</option>
+        <option value="0">Jan</option>
+        <option value="1">Feb</option>
+        <option value="2">Mar</option>
+        <option value="3">Apr</option>
+        <option value="4">May</option>
+        <option value="5">Jun</option>
+        <option value="6">Jul</option>
+        <option value="7">Aug</option>
+        <option value="8">Sep</option>
+        <option value="9">Oct</option>
+        <option value="10">Nov</option>
+        <option value="11">Dec</option>
+    </select>
+
+    <select id="yearFilter" onchange="render()">
+        <option value="">All Years</option>
+        <option value="2024">2024</option>
+        <option value="2025">2025</option>
+        <option value="2026">2026</option>
+        <option value="2027">2027</option>
+    </select>
+</div>
+
+<div id="list"></div>
+
+</div>
+
+<!-- DATE MODAL -->
+<div class="modal" id="dateModal" onclick="closeModalOutside(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <input type="date" id="dateInput" />
+        <div class="row">
+            <button onclick="saveDate()">Save</button>
+            <button onclick="closeModal()" style="background:#ef4444">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+    getFirestore,
+    collection,
+    addDoc,
+    onSnapshot,
+    updateDoc,
+    deleteDoc,
+    doc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAA8Z5zVivaW69yAK6bPO6tBpfWtzh1LEg",
+  authDomain: "water-bottle-logger.firebaseapp.com",
+  projectId: "water-bottle-logger",
+  storageBucket: "water-bottle-logger.firebasestorage.app",
+  messagingSenderId: "454383387158",
+  appId: "1:454383387158:web:e48fb9876f00bef862ab37"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let items=[];
+let editIndex=null;
+let editLogIndex=null;
+
+onSnapshot(collection(db,"items"),(snapshot)=>{
+    items=snapshot.docs.map(d=>({id:d.id,...d.data()}));
+    render();
+});
+
+function formatDate(dateObj){
+    const d=dateObj||new Date();
+    const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d.getDate()}-${m[d.getMonth()]}-${d.getFullYear()}`;
+}
+
+function parseMonth(dateStr){
+    const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return m.indexOf(dateStr.split('-')[1]);
+}
+
+function parseYear(dateStr){
+    return dateStr.split('-')[2];
+}
+
+window.addItem = async function(){
+    const name=document.getElementById('itemName').value.trim();
+    if(!name) return;
+
+    await addDoc(collection(db,"items"),{
+        name,
+        price:150,
+        logs:[]
+    });
+
+    document.getElementById('itemName').value='';
+};
+
+window.logEntry = async function(i){
+    const qty=prompt("Enter quantity:");
+    if(!qty) return;
+
+    let item=items[i];
+    item.logs.push({qty:Number(qty),date:formatDate()});
+
+    await updateDoc(doc(db,"items",item.id),{
+        logs:item.logs
+    });
+};
+
+window.editPrice = async function(i){
+    let item=items[i];
+    const p=prompt("Enter price:",item.price);
+    if(!p) return;
+
+    await updateDoc(doc(db,"items",item.id),{
+        price:Number(p)
+    });
+};
+
+// OPEN MODAL
+window.editDate = function(i,j){
+    editIndex=i;
+    editLogIndex=j;
+    document.getElementById('dateModal').style.display='flex';
+};
+
+window.saveDate = async function(){
+    const val=document.getElementById('dateInput').value;
+    if(!val) return;
+
+    let item=items[editIndex];
+    const d=new Date(val);
+    const formatted=formatDate(d);
+
+    item.logs[editLogIndex].date=formatted;
+
+    await updateDoc(doc(db,"items",item.id),{
+        logs:item.logs
+    });
+
+    closeModal();
+};
+
+window.deleteEntry = async function(i,j){
+    let item=items[i];
+    item.logs.splice(j,1);
+
+    await updateDoc(doc(db,"items",item.id),{
+        logs:item.logs
+    });
+};
+
+window.deleteCompany = async function(i){
+    if(!confirm("Delete entire company?")) return;
+    await deleteDoc(doc(db,"items",items[i].id));
+};
+
+// MODAL CONTROLS
+window.closeModal = function(){
+    document.getElementById('dateModal').style.display='none';
+};
+
+window.closeModalOutside = function(e){
+    if(e.target.id==='dateModal') closeModal();
+};
+
+window.render = function(){
+    const list=document.getElementById('list');
+    const search=document.getElementById('search').value.toLowerCase();
+    const month=document.getElementById('monthFilter').value;
+    const year=document.getElementById('yearFilter').value;
+
+    list.innerHTML='';
+
+    items.filter(i=>i.name.toLowerCase().includes(search))
+    .forEach((item,i)=>{
+
+        let logs=item.logs||[];
+
+        if(month!="") logs=logs.filter(l=>parseMonth(l.date)==month);
+        if(year!="") logs=logs.filter(l=>parseYear(l.date)==year);
+
+        let totalQty=logs.reduce((a,b)=>a+b.qty,0);
+        let totalAmount=totalQty*(item.price||0);
+
+        let html=`
+        <div class="card">
+            <h2>${item.name}</h2>
+            <div class="small">Price: ${item.price}</div>
+            <div class="small">Qty: ${totalQty} | Amount: ${totalAmount}</div>
+
+            <div class="row">
+                <button onclick="logEntry(${i})">Add Entry</button>
+                <button onclick="editPrice(${i})">Edit Price</button>
+                <button onclick="deleteCompany(${i})">Delete Company</button>
+            </div>
+        `;
+
+        logs.forEach((log,j)=>{
+            html+=`
+            <div class="row">
+                <div>${log.qty} - ${log.date}</div>
+                <div>
+                    <button class="btn" onclick="editDate(${i},${j})">Edit</button>
+                    <button class="btn" onclick="deleteEntry(${i},${j})">Delete</button>
+                </div>
+            </div>
+            `;
+        });
+
+        html+=`</div>`;
+        list.innerHTML+=html;
+    });
+};
+
+</script>
+
+</body>
+</html>
