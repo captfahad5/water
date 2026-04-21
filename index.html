@@ -271,7 +271,8 @@ window.logEntry = async function (i) {
     const item = items[i];
     item.logs.push({
         qty: Number(qty),
-        date: formatDate()
+        date: formatDate(),
+        comment: ""
     });
 
     await updateDoc(doc(db, "items", item.id), {
@@ -288,6 +289,20 @@ window.editPrice = async function (i) {
 
     await updateDoc(doc(db, "items", item.id), {
         price: Number(newPrice)
+    });
+};
+
+window.editComment = async function (i, j) {
+    const item = items[i];
+    const currentComment = item.logs[j].comment || "";
+    const newComment = prompt("Enter comment:", currentComment);
+
+    if (newComment === null) return;
+
+    item.logs[j].comment = newComment.trim();
+
+    await updateDoc(doc(db, "items", item.id), {
+        logs: item.logs
     });
 };
 
@@ -315,7 +330,8 @@ window.payCompany = async function (i) {
         paidDate: formatDate(),
         logs: logs.map(log => ({
             qty: Number(log.qty || 0),
-            date: log.date || ""
+            date: log.date || "",
+            comment: log.comment || ""
         }))
     });
 
@@ -516,7 +532,8 @@ window.renderHistory = function () {
                                 safeLogs.length
                                     ? safeLogs.map(log => `
                                         <div class="history-log">
-                                            ${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}
+                                            <div>${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}</div>
+                                            ${log.comment ? `<div class="small">Comment: ${escapeHtml(log.comment)}</div>` : ""}
                                         </div>
                                     `).join("")
                                     : `<div style="margin-top:8px;color:#94a3b8;">No saved dates</div>`
@@ -559,9 +576,13 @@ window.render = function () {
             logs.forEach((log, j) => {
                 html += `
                     <div class="row">
-                        <div>${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}</div>
+                        <div>
+                            <div>${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}</div>
+                            ${log.comment ? `<div class="small">Comment: ${escapeHtml(log.comment)}</div>` : ""}
+                        </div>
                         <div>
                             <button class="btn" onclick="editDate(${i},${j})">Edit</button>
+                            <button class="btn" onclick="editComment(${i},${j})">Comment</button>
                             <button class="btn" onclick="deleteEntry(${i},${j})">X</button>
                         </div>
                     </div>
