@@ -533,7 +533,7 @@ window.renderHistory = function () {
                                     ? safeLogs.map(log => `
                                         <div class="history-log">
                                             <div>${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}</div>
-                                            ${log.comment ? `<div class="small">Comment: ${escapeHtml(log.comment)}</div>` : ""}
+                                            ${log.comment ? `<div class="small">${escapeHtml(log.comment)}</div>` : ""}
                                         </div>
                                     `).join("")
                                     : `<div style="margin-top:8px;color:#94a3b8;">No saved dates</div>`
@@ -578,7 +578,7 @@ window.render = function () {
                     <div class="row">
                         <div>
                             <div>${escapeHtml(String(log.qty))} - ${escapeHtml(log.date || "")}</div>
-                            ${log.comment ? `<div class="small">Comment: ${escapeHtml(log.comment)}</div>` : ""}
+                            ${log.comment ? `<div class="small">${escapeHtml(log.comment)}</div>` : ""}
                         </div>
                         <div>
                             <button class="btn" onclick="editDate(${i},${j})">Edit</button>
